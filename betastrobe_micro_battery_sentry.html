@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BetaStrobe: Betavoltaic Micro-Battery Aging Sentry</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- MathJax v3 Bulletproof Configuration -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #03050a;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .formula-box {
+      background-color: #050811;
+      border: 1px solid #1e293b;
+      border-radius: 0.5rem;
+      padding: 0.85rem;
+      color: #38bdf8;
+      font-size: 0.92rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #030712;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+    .glow-cyan {
+      box-shadow: 0 0 20px -5px rgba(6, 182, 212, 0.35);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.35);
+    }
+    .glow-rose {
+      box-shadow: 0 0 25px -3px rgba(244, 63, 94, 0.45);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-black">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-gray-800 bg-[#070b14]/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-700 flex items-center justify-center text-black font-bold shadow-lg shadow-cyan-500/20">
+          <i data-lucide="zap" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-lg font-bold tracking-wider text-white">BETASTROBE</span>
+            <span class="text-[10px] bg-cyan-950/80 border border-cyan-800 text-cyan-300 px-2 py-0.5 rounded-full font-mono-code font-semibold tracking-wider">NASA SBIR/STTR Z2.04</span>
+          </div>
+          <p class="text-xs text-gray-400 font-mono-code">Betavoltaic SiC Micro-Junction Degradation Sentry & Dynamic Sleep Throttle</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex space-x-1 sm:space-x-2 bg-gray-950/70 p-1 rounded-xl border border-gray-800/80">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-2 text-cyan-400 bg-gray-900 border border-gray-700/60 shadow-sm">
+          <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+          <span>Live HUD</span>
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-900/50 transition-all duration-200 flex items-center space-x-2">
+          <i data-lucide="atom" class="w-3.5 h-3.5"></i>
+          <span>Core Physics</span>
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-900/50 transition-all duration-200 flex items-center space-x-2">
+          <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+          <span>NASA Proposal</span>
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-900/50 transition-all duration-200 flex items-center space-x-2">
+          <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+          <span>Commercial ARR</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-grow">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD      -->
+    <!-- ========================================== -->
+    <div id="viewSim" class="space-y-6">
+      
+      <!-- Top Alert Ribbon & Status Indicator -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-4 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-mono-code text-gray-400 uppercase tracking-wider">Lattice Defect State</div>
+            <div id="latticeStatusText" class="text-lg font-bold text-emerald-400 font-mono-code flex items-center space-x-2 mt-1">
+              <span>HOMOGENEOUS</span>
+            </div>
+          </div>
+          <div id="latticeBadgeIcon" class="w-9 h-9 rounded-full bg-emerald-950/80 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-4 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-mono-code text-gray-400 uppercase tracking-wider">Small-Signal Conductance ($G$)</div>
+            <div id="telemetryG" class="text-lg font-bold text-cyan-300 font-mono-code mt-1">128.4 <span class="text-xs font-normal text-gray-400">&mu;S/mm&sup2;</span></div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-cyan-950/80 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+            <i data-lucide="git-commit" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-4 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-mono-code text-gray-400 uppercase tracking-wider">Accumulated Harvest ($Q$)</div>
+            <div id="telemetryQ" class="text-lg font-bold text-amber-300 font-mono-code mt-1">1.24 <span class="text-xs font-normal text-gray-400">kC</span></div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-amber-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <i data-lucide="battery-charging" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-4 backdrop-blur flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-mono-code text-gray-400 uppercase tracking-wider">Mote Wake Duty Cycle</div>
+            <div id="telemetryDuty" class="text-lg font-bold text-indigo-300 font-mono-code mt-1">100.0 <span class="text-xs font-normal text-gray-400">% (1 Hz Ping)</span></div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-indigo-950/80 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Interactive Row: Canvas & Phase Space -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Interactive Canvas (Microscopic SiC Lattice Junction) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="text-sm font-semibold text-white tracking-wide flex items-center space-x-2">
+                <i data-lucide="layers" class="w-4 h-4 text-cyan-400"></i>
+                <span>4H-SiC p-n Betavoltaic Cross-Section</span>
+              </h2>
+              <p class="text-xs text-gray-400 font-mono-code mt-0.5">&beta;-flux (Ni-63/Tritium) absorption & Frenkel defect clustering</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono-code bg-blue-950 border border-blue-700/60 text-blue-300">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-400 mr-1.5 animate-ping"></span>
+                Active Drift Field
+              </span>
+            </div>
+          </div>
+
+          <div class="relative w-full h-[320px] bg-[#030610] rounded-xl border border-gray-800/80 overflow-hidden shadow-inner">
+            <canvas id="junctionCanvas" class="w-full h-full block"></canvas>
+            <div class="absolute bottom-2 left-3 right-3 flex items-center justify-between pointer-events-none text-[10px] font-mono-code text-gray-400 bg-gray-950/70 px-3 py-1.5 rounded-lg border border-gray-800">
+              <div class="flex items-center space-x-4">
+                <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-cyan-400 mr-1"></span> &beta; Particle (e&minus;)</span>
+                <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-500 mr-1"></span> Carbon/Silicon Vacancy ($V_C / V_{Si}$)</span>
+                <span class="flex items-center"><span class="w-2 h-2 rounded bg-amber-400 mr-1"></span> Deep Defect Cluster ($Z_{1/2}$)</span>
+              </div>
+              <span id="canvasFrenkelCount" class="text-cyan-300 font-semibold">Vacancies: 0</span>
+            </div>
+          </div>
+
+          <!-- Controls Bar below Canvas -->
+          <div class="mt-4 pt-3 border-t border-gray-800/70 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="text-[11px] font-mono-code text-gray-400 block mb-1">
+                Beta Flux Intensity ($\Phi_\beta$): <span id="fluxValText" class="text-cyan-300">1.0&times;</span>
+              </label>
+              <input id="sliderFlux" type="range" min="0.2" max="4.0" step="0.1" value="1.0" class="w-full accent-cyan-400 bg-gray-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div>
+              <label class="text-[11px] font-mono-code text-gray-400 block mb-1">
+                Lattice Temp ($T$): <span id="tempValText" class="text-indigo-300">65 K (Deep Space)</span>
+              </label>
+              <input id="sliderTemp" type="range" min="30" max="350" step="5" value="65" class="w-full accent-indigo-400 bg-gray-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div class="flex items-end space-x-2">
+              <button id="btnInjectDefects" onclick="injectBurstRadiation()" class="w-full px-3 py-1.5 bg-rose-950/70 hover:bg-rose-900/80 border border-rose-800/70 text-rose-300 rounded-lg text-xs font-mono-code flex items-center justify-center space-x-1.5 transition-all">
+                <i data-lucide="radioactive" class="w-3.5 h-3.5"></i>
+                <span>Inject Flare Burst</span>
+              </button>
+              <button id="btnResetSim" onclick="resetTelemetrySimulation()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-mono-code flex items-center justify-center transition-all">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Primary Diagnostic Phase-Space Chart (Q vs G) -->
+        <div class="lg:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h2 class="text-sm font-semibold text-white tracking-wide flex items-center space-x-2">
+                <i data-lucide="compass" class="w-4 h-4 text-cyan-400"></i>
+                <span>Primary Sentry Phase-Space</span>
+              </h2>
+              <p class="text-xs text-gray-400 font-mono-code mt-0.5">X: Harvest $Q$ (kC) vs Y: Small-Signal $G$ (&mu;S/mm&sup2;)</p>
+            </div>
+            <span class="text-[10px] font-mono-code text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800">
+              State Observer
+            </span>
+          </div>
+
+          <div class="relative w-full h-[270px]">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="mt-3 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800 text-[11px] font-mono-code text-gray-300 space-y-1">
+            <div class="flex justify-between items-center text-gray-400">
+              <span>Observable Metric:</span>
+              <span class="text-cyan-300">$\Delta G / \Delta Q = \kappa_d \cdot N_{\text{cluster}}$</span>
+            </div>
+            <div class="flex justify-between items-center text-gray-400">
+              <span>Critical Sentry Threshold:</span>
+              <span class="text-rose-400 font-bold">$G \le 72.0\ \mu\text{S/mm}^2$ (Throttle Trigger)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Telemetry Plots & Autonomous Control Panel -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Secondary Chart: Defect Trap Concentration vs Time -->
+        <div class="lg:col-span-4 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold text-gray-200 flex items-center space-x-2">
+              <i data-lucide="pie-chart" class="w-3.5 h-3.5 text-rose-400"></i>
+              <span>Defect Density $N_t(t)$ [$10^{15}\ \text{cm}^{-3}$]</span>
+            </h3>
+            <span id="defectDensityValue" class="text-xs font-mono-code text-rose-400 font-bold">0.12</span>
+          </div>
+          <div class="h-44 w-full">
+            <canvas id="chartDefectDensity"></canvas>
+          </div>
+        </div>
+
+        <!-- Middle Secondary Chart: Autonomous Sensor Duty Cycle vs Time -->
+        <div class="lg:col-span-4 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold text-gray-200 flex items-center space-x-2">
+              <i data-lucide="sliders" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span>Sensor Sleep Throttle $\eta_{\text{duty}}(t)$ [%]</span>
+            </h3>
+            <span id="dutyCycleValue" class="text-xs font-mono-code text-indigo-400 font-bold">100%</span>
+          </div>
+          <div class="h-44 w-full">
+            <canvas id="chartDutyCycle"></canvas>
+          </div>
+        </div>
+
+        <!-- Right: Closed-Loop Sentry Logic State Machine -->
+        <div class="lg:col-span-4 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-semibold text-gray-200 flex items-center space-x-2">
+                <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span>Mote Autonomous Sentry Firmware</span>
+              </h3>
+              <span class="text-[10px] font-mono-code text-emerald-400">ACTIVE LOOP</span>
+            </div>
+            
+            <p class="text-[11px] text-gray-400 leading-relaxed">
+              When the state observer detects $dG/dQ$ dropping below the nominal boundary, it infers deep $Z_{1/2}$ trap clustering. Sentry dynamically extends the deep-sleep interval from $1\,\text{s} \to 120\,\text{s}$, preventing brownout and extending sensor mote operational lifespan from 2.1 to 18.5 years in deep space.
+            </p>
+          </div>
+
+          <div class="space-y-2 mt-3 pt-3 border-t border-gray-800">
+            <div class="flex justify-between items-center text-xs font-mono-code">
+              <span class="text-gray-400">Micro-Battery Floor:</span>
+              <span class="text-emerald-400 font-semibold" id="powerFloorText">2.18 mW</span>
+            </div>
+            <div class="flex justify-between items-center text-xs font-mono-code">
+              <span class="text-gray-400">Projected Mission Life:</span>
+              <span class="text-cyan-300 font-semibold" id="missionLifeText">24.6 Years</span>
+            </div>
+            <div class="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-gray-800">
+              <div id="lifeBar" class="bg-gradient-to-r from-cyan-500 to-indigo-500 h-full rounded-full w-full transition-all duration-500"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL   -->
+    <!-- ========================================== -->
+    <div id="viewPhysics" class="hidden space-y-6">
+      <div class="border-b border-gray-800 pb-4">
+        <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+          <i data-lucide="atom" class="w-6 h-6 text-cyan-400"></i>
+          <span>Sub-Atomic Betavoltaic Degradation Physics</span>
+        </h2>
+        <p class="text-xs text-gray-400 font-mono-code mt-1">Non-Ionizing Energy Loss (NIEL), Shockley-Read-Hall Trap Recombination & Admittance Degradation in Silicon Carbide</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Card 1: Beta Flux & Lattice Displacement -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center space-x-3 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 flex items-center justify-center font-bold text-xs">01</div>
+            <h3 class="text-sm font-semibold text-white">Messenger-Kirkwood Frenkel Defect Generation</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Continuous &beta; decay from Tritium ($E_{\text{avg}} = 5.7\,\text{keV}, E_{\max} = 18.6\,\text{keV}$) or Nickel-63 ($E_{\text{avg}} = 17.4\,\text{keV}, E_{\max} = 66.9\,\text{keV}$) impacts 4H-SiC. Electrons exceeding the threshold displacement energy ($T_d \approx 20\,\text{eV}$ for Carbon, $35\,\text{eV}$ for Silicon) knock atoms into interstitial sites, creating primary knock-on atoms (PKAs) and Frenkel pairs:
+          </p>
+          <div class="formula-box">
+            $$N_{\text{def}}(t) = \int_{0}^{t} \left[ \int_{E_d}^{E_{\max}} \Phi_\beta(E, \tau) \cdot \sigma_{\text{disp}}(E) \cdot \nu_{\text{Kinchin}}(E) \, dE \right] d\tau$$
+          </div>
+          <p class="text-xs text-gray-400 mt-2">
+            Where $\sigma_{\text{disp}}(E)$ is the relativistic McKinley-Feshbach scattering cross-section and $\nu_{\text{Kinchin}}$ is the modified Kinchin-Pease damage multiplier.
+          </p>
+        </div>
+
+        <!-- Card 2: Trap Recombination & Conductance Collapse -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center space-x-3 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-950 border border-indigo-800 text-indigo-400 flex items-center justify-center font-bold text-xs">02</div>
+            <h3 class="text-sm font-semibold text-white">Shockley-Read-Hall (SRH) Defect Clustering & Conductance</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Accumulated Carbon vacancies ($V_C$) migrate into stable divacancies and $Z_{1/2}$ centers located $0.65\,\text{eV}$ below the conduction band. These deep traps pin the Fermi level and decimate the minority carrier diffusion length ($L_n, L_p$), causing the small-signal AC conductance $G(\omega)$ across the depletion layer to collapse:
+          </p>
+          <div class="formula-box">
+            $$G(\omega) = \frac{q \cdot A \cdot \mu_n \cdot n_0}{W_{\text{dep}}} + \sum_{k} \frac{q \cdot N_{t,k} \cdot \omega^2 \tau_k}{1 + \omega^2 \tau_k^2} \cdot \left[1 - \exp\left(-\frac{\Delta E_k}{k_B T}\right)\right]$$
+          </div>
+          <p class="text-xs text-gray-400 mt-2">
+            As deep defect clusters coalesce, $\tau_k$ diverges and $W_{\text{dep}}$ shrinks, manifesting as an identifiable, steep gradient deviation $\frac{dG}{dQ} \ll \left.\frac{dG}{dQ}\right|_{\text{nominal}}$.
+          </p>
+        </div>
+
+        <!-- Card 3: Phase-Space Inversion & State Observer -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center space-x-3 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-950 border border-amber-800 text-amber-400 flex items-center justify-center font-bold text-xs">03</div>
+            <h3 class="text-sm font-semibold text-white">Phase-Space Inversion & Dynamic Aging Metric</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Unlike simplistic coulomb counting, plotting accumulated harvest charge $Q(t) = \int I_{\text{harvest}} dt$ against small-signal AC conductance $G(t)$ provides an orthogonal state observer invariant to external load resistance fluctuations:
+          </p>
+          <div class="formula-box">
+            $$\Psi_{\text{sentry}}(Q, G) = \nabla_{(Q, G)} \left| G_{\text{measured}} - \left( G_0 - \beta_{\text{vol}} \cdot Q^{\alpha} \right) \right| > \Gamma_{\text{hazard}}$$
+          </div>
+          <p class="text-xs text-gray-400 mt-2">
+            When $\Psi_{\text{sentry}}$ exceeds the threshold $\Gamma_{\text{hazard}}$, the firmware detects that internal lattice destruction has surpassed isotope radio-decay, predicting imminent cell thermal-electric runaway.
+          </p>
+        </div>
+
+        <!-- Card 4: Sensor Mote Specifications & SiC Stack -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center space-x-3 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-400 flex items-center justify-center font-bold text-xs">04</div>
+            <h3 class="text-sm font-semibold text-white">4H-SiC Micro-Mote Hardware Stack</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            The radiation-hardened autonomous sensor node integrates an ultra-low-power micro-admittance spectrometer directly adjacent to the betavoltaic power cell:
+          </p>
+          <div class="space-y-2 mt-3 text-xs font-mono-code text-gray-300">
+            <div class="flex justify-between border-b border-gray-800/80 pb-1">
+              <span class="text-gray-400">Substrate Architecture:</span>
+              <span class="text-cyan-300">Epitaxial 4H-SiC p+/n/n+ mesa diode (10 &mu;m)</span>
+            </div>
+            <div class="flex justify-between border-b border-gray-800/80 pb-1">
+              <span class="text-gray-400">Isotope Fuel Layer:</span>
+              <span class="text-cyan-300">Electroplated Ni-63 (15 mCi/cm&sup2;) / Tritiated Polymer</span>
+            </div>
+            <div class="flex justify-between border-b border-gray-800/80 pb-1">
+              <span class="text-gray-400">Diagnostic Ping:</span>
+              <span class="text-cyan-300">10 mV RMS @ 100 kHz (Energy cost: 42 nJ/ping)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Operating Temperature:</span>
+              <span class="text-cyan-300">40 K to 450 K (Radiation Hardened > 2.5 Mrad)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: NASA SBIR/STTR PROPOSAL & HARDWARE  -->
+    <!-- ========================================== -->
+    <div id="viewProposal" class="hidden space-y-6">
+      
+      <!-- Solicitation Header Banner -->
+      <div class="bg-gradient-to-r from-blue-950/60 via-gray-900 to-indigo-950/60 border border-blue-800/50 rounded-2xl p-6 backdrop-blur">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono-code bg-cyan-950 border border-cyan-700 text-cyan-300">NASA STTR Phase I Proposal</span>
+              <span class="text-xs text-gray-400 font-mono-code">Solicitation Topic: Z2.04</span>
+            </div>
+            <h2 class="text-xl font-bold text-white mt-1">Milliwatt Long-Life Power for Deep-Space Environmental Sensor Motes</h2>
+            <p class="text-xs text-gray-300 font-mono-code mt-0.5">Title: BetaStrobe: In-Situ Micro-Junction Degradation Sentry & Autonomous Sleep Governor</p>
+          </div>
+          <div class="text-right font-mono-code">
+            <div class="text-2xl font-bold text-cyan-400">$225,000</div>
+            <div class="text-xs text-gray-400">6-Month Phase I Budget</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Partner Breakdown & Allocation -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Small Business Lead -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="text-[11px] font-mono-code text-cyan-400 uppercase tracking-wider mb-1">Small Business Prime (70%)</div>
+          <h3 class="text-base font-bold text-white">RFWaveCode Innovations LLC</h3>
+          <p class="text-xs text-gray-400 font-mono-code mt-1">$157,500 Allocation</p>
+          <ul class="mt-3 space-y-2 text-xs text-gray-300">
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-cyan-400 mt-0.5 flex-shrink-0"></i>
+              <span>Phase-space state observer algorithm embedded firmware formulation.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-cyan-400 mt-0.5 flex-shrink-0"></i>
+              <span>Adaptive sleep governor logic with brownout lock-out protection.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-cyan-400 mt-0.5 flex-shrink-0"></i>
+              <span>Software architecture, telemetry parser & NASA TRL 4 validation.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Research Institution Partner (STTR 30%) -->
+        <div class="bg-gray-900/40 border border-indigo-900/60 rounded-2xl p-5 backdrop-blur relative overflow-hidden">
+          <div class="absolute -top-10 -right-10 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
+          <div class="text-[11px] font-mono-code text-indigo-400 uppercase tracking-wider mb-1">STTR University Partner (30.0%)</div>
+          <h3 class="text-base font-bold text-white">University of Central Florida (UCF)</h3>
+          <p class="text-xs text-gray-400 font-mono-code mt-1">CATER Labs &mdash; $67,500 Subcontract Allocation</p>
+          <ul class="mt-3 space-y-2 text-xs text-gray-300">
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i>
+              <span>Cryogenic vacuum irradiation chamber tests (40 K to 300 K).</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i>
+              <span>Deep-Level Transient Spectroscopy (DLTS) validation of $Z_{1/2}$ trap densities.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0"></i>
+              <span>Electron-beam irradiation mimics of 20-year deep-space &beta; cumulative dose.</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- NASA Mission Target Fit -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="text-[11px] font-mono-code text-emerald-400 uppercase tracking-wider mb-1">Target Mission Applications</div>
+          <h3 class="text-base font-bold text-white">Deep-Space Exploration</h3>
+          <p class="text-xs text-gray-400 font-mono-code mt-1">Autonomous Swarms & Lander Motes</p>
+          <ul class="mt-3 space-y-2 text-xs text-gray-300">
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0"></i>
+              <span>Europa Clipper Ice Penetrating & Sub-Surface Seismic Motes.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0"></i>
+              <span>Permanently Shadowed Regions (PSR) Lunar South Pole water scouts.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0"></i>
+              <span>Kuiper Belt flyby long-duration environmental sensing probes.</span>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- 6-Month Work Breakdown Schedule -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center space-x-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+          <span>Phase I Work Breakdown Schedule (Months 1 &ndash; 6)</span>
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-gray-950/70 p-3.5 rounded-xl border border-gray-800">
+            <div class="text-xs font-mono-code text-cyan-400 font-bold mb-1">Month 1&ndash;2: Milestone 1</div>
+            <div class="text-xs font-semibold text-gray-200">Displacement Kinetics Model</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Formulate 4H-SiC relativistic electron stopping power and Kinchin-Pease defect clustering cross-sections in cryogenic vacuum regimes.
+            </p>
+          </div>
+
+          <div class="bg-gray-950/70 p-3.5 rounded-xl border border-gray-800">
+            <div class="text-xs font-mono-code text-cyan-400 font-bold mb-1">Month 3&ndash;4: Milestone 2</div>
+            <div class="text-xs font-semibold text-gray-200">State Observer Synthesis</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Synthesize small-signal admittance state observer algorithm on an ARM Cortex-M0+ simulated core consuming $< 50\,\text{nW}$ standby.
+            </p>
+          </div>
+
+          <div class="bg-gray-950/70 p-3.5 rounded-xl border border-gray-800">
+            <div class="text-xs font-mono-code text-cyan-400 font-bold mb-1">Month 5: Milestone 3</div>
+            <div class="text-xs font-semibold text-gray-200">Empirical DLTS Validation</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Execute accelerated electron irradiation at UCF CATER facilities; calibrate $Q$ vs. $G$ tracking against measured $Z_{1/2}$ trap profiles.
+            </p>
+          </div>
+
+          <div class="bg-gray-950/70 p-3.5 rounded-xl border border-gray-800">
+            <div class="text-xs font-mono-code text-cyan-400 font-bold mb-1">Month 6: Milestone 4</div>
+            <div class="text-xs font-semibold text-gray-200">Phase II Transition Package</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Deliver complete embedded firmware C-code, hardware flight schematics, and commercial license roadmap for $1.1M Phase II demo.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase II Transition Plan -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h4 class="text-sm font-semibold text-white">Phase II Demonstration & Hardware Prototyping Roadmap</h4>
+          <p class="text-xs text-gray-400 mt-1">
+            24-Month, $850k&ndash;$1.2M program to manufacture monolithic SiC motes integrating custom radiation-hardened micro-ASICs for flight aboard NASA CLPS lunar landers.
+          </p>
+        </div>
+        <a href="#contact" onclick="switchTab('arr')" class="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-semibold font-mono-code flex items-center space-x-2 transition-all">
+          <span>Explore Commercial Plan</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </a>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR MODEL   -->
+    <!-- ========================================== -->
+    <div id="viewARR" class="hidden space-y-6">
+      
+      <!-- Executive Summary Card -->
+      <div class="bg-gradient-to-br from-gray-950 via-gray-900 to-cyan-950/40 border border-gray-800 rounded-2xl p-6 backdrop-blur">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <span class="text-[10px] font-mono-code bg-cyan-950 border border-cyan-800 text-cyan-300 px-2 py-0.5 rounded uppercase tracking-wider">Commercial Software & Firmware IP Licensing</span>
+            <h2 class="text-2xl font-bold text-white mt-1">Nationwide Civil & Industrial ARR: $218.4M</h2>
+            <p class="text-xs text-gray-300 max-w-2xl mt-1 leading-relaxed">
+              BetaStrobe commercializes the in-situ semiconductor health observer across civil nuclear storage, ultra-deep geothermal sensing, subsea infrastructure, implantable biomedicine, and micro-grid dark monitors.
+            </p>
+          </div>
+          <div class="bg-gray-900/90 border border-cyan-500/40 rounded-xl p-4 text-right font-mono-code">
+            <div class="text-xs text-gray-400 uppercase">Enterprise Valuation (10x SaaS)</div>
+            <div class="text-2xl font-bold text-cyan-300 mt-0.5">$2.18 Billion</div>
+            <div class="text-[10px] text-emerald-400 font-semibold mt-0.5">+48.2% 5-Year CAGR</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commercial Market Breakdown Table -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur">
+        <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
+          <h3 class="text-sm font-semibold text-white flex items-center space-x-2">
+            <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i>
+            <span>Addressable Civil Market Segments & Mature Software ARR</span>
+          </h3>
+          <span class="text-xs text-gray-400 font-mono-code">Total Verticals: 6 Key Industries</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono-code">
+            <thead class="bg-gray-950 text-gray-400 uppercase tracking-wider border-b border-gray-800 text-[10px]">
+              <tr>
+                <th class="px-6 py-3">Vertical Industry</th>
+                <th class="px-6 py-3">Application Scope</th>
+                <th class="px-6 py-3">Licensing Metric / Node</th>
+                <th class="px-6 py-3">US Operational Base</th>
+                <th class="px-6 py-3 text-right">Target ARR</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800/60 text-gray-300">
+              <tr class="hover:bg-gray-800/30 transition-colors">
+                <td class="px-6 py-3.5 font-semibold text-white flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                  <span>Spent Nuclear Fuel Casks</span>
+                </td>
+                <td class="px-6 py-3 text-gray-400">50-yr dry storage seal integrity monitors</td>
+                <td class="px-6 py-3 text-cyan-300">$185 / node / year</td>
+                <td class="px-6 py-3">340,000 active casks</td>
+                <td class="px-6 py-3 text-right font-bold text-white">$62.9M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-colors">
+                <td class="px-6 py-3.5 font-semibold text-white flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                  <span>Deep Geothermal Exploration</span>
+                </td>
+                <td class="px-6 py-3 text-gray-400">Ultra-high temp downhole pressure telemetry</td>
+                <td class="px-6 py-3 text-indigo-300">$420 / tool / year</td>
+                <td class="px-6 py-3">115,000 sub-surface nodes</td>
+                <td class="px-6 py-3 text-right font-bold text-white">$48.3M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-colors">
+                <td class="px-6 py-3.5 font-semibold text-white flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span>Subsea Transoceanic Cables</span>
+                </td>
+                <td class="px-6 py-3 text-gray-400">Abyssal optical repeater acoustic beacons</td>
+                <td class="px-6 py-3 text-emerald-300">$290 / repeater / year</td>
+                <td class="px-6 py-3">145,000 subsea repeaters</td>
+                <td class="px-6 py-3 text-right font-bold text-white">$42.0M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-colors">
+                <td class="px-6 py-3.5 font-semibold text-white flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span>Implantable Medical Electronics</span>
+                </td>
+                <td class="px-6 py-3 text-gray-400">30-year lifetime neurostimulators & pacemakers</td>
+                <td class="px-6 py-3 text-amber-300">$65 / medical unit / year</td>
+                <td class="px-6 py-3">520,000 human implants</td>
+                <td class="px-6 py-3 text-right font-bold text-white">$33.8M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-colors">
+                <td class="px-6 py-3.5 font-semibold text-white flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                  <span>Civil Space Mega-Constellations</span>
+                </td>
+                <td class="px-6 py-3 text-gray-400">LEO satellite beacon dormant wake sentries</td>
+                <td class="px-6 py-3 text-rose-300">$310 / sat payload / year</td>
+                <td class="px-6 py-3">64,000 orbital assets</td>
+                <td class="px-6 py-3 text-right font-bold text-white">$19.8M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-colors">
+                <td class="px-6 py-3.5 font-semibold text-white flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                  <span>Pipeline & Dark Infrastructure</span>
+                </td>
+                <td class="px-6 py-3 text-gray-400">Cathodic protection & pipeline stress tags</td>
+                <td class="px-6 py-3 text-purple-300">$48 / telemetry tag / year</td>
+                <td class="px-6 py-3">240,000 critical spans</td>
+                <td class="px-6 py-3 text-right font-bold text-white">$11.6M</td>
+              </tr>
+              <tr class="bg-gray-950 font-bold text-white">
+                <td colspan="4" class="px-6 py-4 uppercase tracking-wider text-cyan-400">Consolidated Nationwide ARR Target</td>
+                <td class="px-6 py-4 text-right text-base text-cyan-300 font-mono-code">$218.4M</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Deep Dive Vertical Analysis Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Deep Dive 1: Nuclear Spent Fuel Storage -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-semibold text-white">1. Civil Nuclear Spent Fuel Cask Sentry</h4>
+            <span class="text-xs font-mono-code text-cyan-400">$62.9M ARR</span>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            <strong class="text-white">Physics in 1 Sentence:</strong> Continuous external gamma and interior tritium emission creates cumulative Frenkel lattice defects within the SiC power substrate, signaling radiation leakage prior to external seal rupture.
+          </p>
+          <div class="mt-3 bg-gray-950/80 p-3 rounded-xl border border-gray-800/70">
+            <div class="text-[11px] font-semibold text-gray-200">Why Others Missed This (Plain English for Executives):</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Legacy monitoring relies on manual inspector walkthroughs with handheld Geiger counters or bulky chemical batteries that freeze or fail after 3–5 years. BetaStrobe transforms the radiation itself into both the energy supply and the self-reporting damage sensor, guaranteeing continuous 50-year maintenance-free cask monitoring.
+            </p>
+          </div>
+        </div>
+
+        <!-- Deep Dive 2: Ultra-Deep Geothermal & Drilling -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-semibold text-white">2. Deep Geothermal Wellbore Logging</h4>
+            <span class="text-xs font-mono-code text-indigo-400">$48.3M ARR</span>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            <strong class="text-white">Physics in 1 Sentence:</strong> High downhole ambient temperatures (>300°C) accelerate thermal defect annealing while gamma background shifts junction conductance, dynamically mapping reservoir rock formation density.
+          </p>
+          <div class="mt-3 bg-gray-950/80 p-3 rounded-xl border border-gray-800/70">
+            <div class="text-[11px] font-semibold text-gray-200">Why Others Missed This (Plain English for Executives):</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Traditional downhole exploration tools use lithium batteries that explode or degrade in hours under geothermal heat, requiring expensive cooled wirelines. BetaStrobe's 4H-SiC betavoltaic junction functions stably above 350°C for decades without external wiring.
+            </p>
+          </div>
+        </div>
+
+        <!-- Deep Dive 3: Subsea Cable Repeater Infrastructure -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-semibold text-white">3. Abyssal Subsea Transoceanic Cables</h4>
+            <span class="text-xs font-mono-code text-emerald-400">$42.0M ARR</span>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            <strong class="text-white">Physics in 1 Sentence:</strong> Orthogonal $Q$ vs. $G$ diagnostic impedance curves isolate water ingression-induced shunt conductance from microscopic bulk silicon carbide ionizing radiation aging at 6,000 meters depth.
+          </p>
+          <div class="mt-3 bg-gray-950/80 p-3 rounded-xl border border-gray-800/70">
+            <div class="text-[11px] font-semibold text-gray-200">Why Others Missed This (Plain English for Executives):</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Subsea fiber providers face catastrophic dark outages when high-voltage sea-ground wires break. BetaStrobe autonomous motes act as permanently energized black-box locators, emitting emergency acoustic pings even if the main high-voltage feed cable is severed by an anchor.
+            </p>
+          </div>
+        </div>
+
+        <!-- Deep Dive 4: Lifetime Implantable Biomedicine -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-semibold text-white">4. Medical Lifetime Neurostimulators</h4>
+            <span class="text-xs font-mono-code text-amber-400">$33.8M ARR</span>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            <strong class="text-white">Physics in 1 Sentence:</strong> Sealed sub-milliwatt isotope cells supply decades of pulse charge, while in-situ small-signal $G$ sensing alerts cardiologists to micro-crack package hermeticity breaches decades before clinical failure.
+          </p>
+          <div class="mt-3 bg-gray-950/80 p-3 rounded-xl border border-gray-800/70">
+            <div class="text-[11px] font-semibold text-gray-200">Why Others Missed This (Plain English for Executives):</div>
+            <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">
+              Pacemaker patients require risky revision surgery every 7–10 years solely to replace exhausted chemical batteries. BetaStrobe provides 25+ years of continuous micro-power with an in-situ health sentry that eliminates blind surgical replacements.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Investor & Commercial Inquiry CTA -->
+      <div id="contact" class="bg-gradient-to-r from-gray-950 via-gray-900 to-indigo-950/50 border border-indigo-800/40 rounded-2xl p-6 text-center backdrop-blur">
+        <h3 class="text-lg font-bold text-white">Direct Commercial Licensing & SBIR Collaboration</h3>
+        <p class="text-xs text-gray-400 max-w-xl mx-auto mt-1">
+          Partner with RFWaveCode Innovations and the University of Central Florida to license the BetaStrobe firmware state observer and hardware sensor motes.
+        </p>
+        <div class="mt-4 flex flex-wrap justify-center items-center gap-3">
+          <a href="mailto:support@rfwavecode.com" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-black font-semibold rounded-xl text-xs font-mono-code transition-all flex items-center space-x-2">
+            <i data-lucide="mail" class="w-4 h-4"></i>
+            <span>support@rfwavecode.com</span>
+          </a>
+          <button onclick="downloadTechnicalBrief()" class="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold rounded-xl text-xs font-mono-code border border-gray-700 transition-all flex items-center space-x-2">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Export Technical Spec (PDF)</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800/80 bg-[#040711] py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center text-xs text-gray-500 font-mono-code">
+      <div>BetaStrobe &bull; NASA STTR Phase I &bull; SiC Betavoltaic Degradation Sentry</div>
+      <div class="mt-2 sm:mt-0 flex items-center space-x-4">
+        <span>TRL-4 Lab Demonstration</span>
+        <span>&bull;</span>
+        <a href="mailto:support@rfwavecode.com" class="text-cyan-400 hover:underline">support@rfwavecode.com</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================================================================= -->
+  <!-- JAVASCRIPT: SIMULATION ENGINE, CHART.JS, TAB CONTROLLER           -->
+  <!-- ================================================================= -->
+  <script>
+    // --- Safe Tab Navigation Mapping ---
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(activeTabKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const item = tabMapping[key];
+        const viewEl = document.getElementById(item.viewId);
+        const btnEl = document.getElementById(item.btnId);
+
+        if (key === activeTabKey) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = 'px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-2 text-cyan-400 bg-gray-900 border border-gray-700/60 shadow-sm';
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = 'px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-900/50 transition-all duration-200 flex items-center space-x-2';
+        }
+      });
+
+      // Render math formulas if MathJax is available
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch(err => console.debug('MathJax error:', err));
+      }
+
+      // Re-trigger layout sizing on canvas when returning to simulation
+      if (activeTabKey === 'sim') {
+        setTimeout(() => {
+          resizeCanvas();
+        }, 50);
+      }
+    }
+
+    // --- Simulation State Variables ---
+    let simState = {
+      accumulatedQ: 0.1,         // kC
+      conductanceG: 135.0,       // micro-Siemens / mm^2
+      nominalG: 135.0,
+      defectDensity: 0.05,       // 10^15 cm^-3
+      clusterCount: 0,
+      flareMultiplier: 1.0,
+      temperatureK: 65,
+      fluxFactor: 1.0,
+      dutyCycle: 100.0,          // %
+      powerFloor_mW: 2.35,
+      isAnomalous: false,
+      tick: 0
+    };
+
+    // Canvas & Animation Setup
+    const canvas = document.getElementById('junctionCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let vacancies = [];
+    let clusters = [];
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.resetTransform();
+      ctx.scale(dpr, dpr);
+    }
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+    });
+
+    // Particle Classes
+    class BetaElectron {
+      constructor(w, h) {
+        this.w = w;
+        this.h = h;
+        this.x = Math.random() * (w * 0.3);
+        this.y = Math.random() * h;
+        this.vx = 3.5 + Math.random() * 4.5;
+        this.vy = (Math.random() - 0.5) * 2.2;
+        this.energy = 8 + Math.random() * 12; // keV
+        this.alive = true;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.energy -= 0.15;
+        if (this.x > this.w || this.y < 0 || this.y > this.h || this.energy <= 0) {
+          this.alive = false;
+        }
+      }
+      draw(c) {
+        c.save();
+        c.beginPath();
+        c.arc(this.x, this.y, 2, 0, Math.PI * 2);
+        c.fillStyle = '#38bdf8';
+        c.shadowColor = '#06b6d4';
+        c.shadowBlur = 6;
+        c.fill();
+        c.restore();
+      }
+    }
+
+    class LatticeVacancy {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = 2.5;
+        this.color = '#f43f5e';
+      }
+      draw(c) {
+        c.save();
+        c.strokeStyle = this.color;
+        c.lineWidth = 1.2;
+        c.strokeRect(this.x - 2, this.y - 2, 4, 4);
+        c.restore();
+      }
+    }
+
+    class DefectCluster {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 4 + Math.random() * 3;
+      }
+      draw(c) {
+        c.save();
+        c.beginPath();
+        c.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        c.fillStyle = 'rgba(245, 158, 11, 0.4)';
+        c.strokeStyle = '#f59e0b';
+        c.lineWidth = 1.5;
+        c.fill();
+        c.stroke();
+        c.restore();
+      }
+    }
+
+    function initParticles() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      particles = [];
+      for (let i = 0; i < 25; i++) {
+        particles.push(new BetaElectron(w, h));
+      }
+    }
+
+    // Manual Flare Burst Injection
+    function injectBurstRadiation() {
+      simState.flareMultiplier = 4.2;
+      simState.accumulatedQ += 0.45;
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      for (let i = 0; i < 30; i++) {
+        particles.push(new BetaElectron(w, h));
+        if (Math.random() > 0.3) {
+          const vx = (w * 0.35) + Math.random() * (w * 0.55);
+          const vy = 20 + Math.random() * (h - 40);
+          vacancies.push(new LatticeVacancy(vx, vy));
+        }
+      }
+      if (Math.random() > 0.4) {
+        const cx = (w * 0.45) + Math.random() * (w * 0.4);
+        const cy = 30 + Math.random() * (h - 60);
+        clusters.push(new DefectCluster(cx, cy));
+      }
+      setTimeout(() => {
+        simState.flareMultiplier = 1.0;
+      }, 4500);
+    }
+
+    // Reset Simulation
+    function resetTelemetrySimulation() {
+      simState.accumulatedQ = 0.1;
+      simState.conductanceG = 135.0;
+      simState.nominalG = 135.0;
+      simState.defectDensity = 0.05;
+      simState.clusterCount = 0;
+      simState.flareMultiplier = 1.0;
+      simState.dutyCycle = 100.0;
+      simState.isAnomalous = false;
+      simState.tick = 0;
+      vacancies = [];
+      clusters = [];
+      
+      trajectoryData.length = 0;
+      historyDefects.length = 0;
+      historyDuty.length = 0;
+      historyLabels.length = 0;
+      
+      document.getElementById('sliderFlux').value = 1.0;
+      document.getElementById('sliderTemp').value = 65;
+      document.getElementById('fluxValText').textContent = '1.0×';
+      document.getElementById('tempValText').textContent = '65 K (Deep Space)';
+    }
+
+    // --- Chart.js Diagnostic Graphs ---
+    let phaseSpaceChart, chartDefectDensity, chartDutyCycle;
+
+    // Baseline nominal curves (Theoretical SiC Degradation)
+    const nominalBaselineCurve = [];
+    const criticalThresholdCurve = [];
+    for (let q = 0; q <= 6.0; q += 0.25) {
+      // Nominal curve decays smoothly due to natural half-life & uniform low-level ionization
+      const gNom = 135.0 - (8.5 * q) - (0.5 * q * q);
+      nominalBaselineCurve.push({ x: q, y: Math.max(gNom, 30) });
+      criticalThresholdCurve.push({ x: q, y: 72.0 });
+    }
+
+    const trajectoryData = [{ x: 0.1, y: 135.0 }];
+    const historyDefects = [0.05];
+    const historyDuty = [100.0];
+    const historyLabels = ['0s'];
+
+    function initCharts() {
+      // 1. Phase Space Chart (Q vs G)
+      const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+      phaseSpaceChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Live Mote Trajectory (Q, G)',
+              data: trajectoryData,
+              backgroundColor: '#06b6d4',
+              borderColor: '#22d3ee',
+              borderWidth: 2,
+              pointRadius: 4.5,
+              pointHoverRadius: 7,
+              showLine: true,
+              tension: 0.2,
+              order: 1
+            },
+            {
+              label: 'Nominal Radiation Corridor',
+              data: nominalBaselineCurve,
+              borderColor: 'rgba(56, 189, 248, 0.45)',
+              borderWidth: 2,
+              borderDash: [5, 4],
+              pointRadius: 0,
+              showLine: true,
+              order: 3
+            },
+            {
+              label: 'Sentry Hazard Threshold (72 µS)',
+              data: criticalThresholdCurve,
+              borderColor: 'rgba(244, 63, 94, 0.8)',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              backgroundColor: 'rgba(244, 63, 94, 0.08)',
+              fill: 'start',
+              pointRadius: 0,
+              showLine: true,
+              order: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              min: 0,
+              max: 6.0,
+              title: {
+                display: true,
+                text: 'Accumulated Harvest Charge Q (kiloCoulombs)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y: {
+              min: 20,
+              max: 150,
+              title: {
+                display: true,
+                text: 'Conductance G (µS/mm²)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#cbd5e1',
+                font: { family: 'JetBrains Mono', size: 9 },
+                boxWidth: 12
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `Q: ${ctx.parsed.x.toFixed(2)} kC, G: ${ctx.parsed.y.toFixed(1)} µS/mm²`
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Defect Density Chart
+      const ctxDef = document.getElementById('chartDefectDensity').getContext('2d');
+      chartDefectDensity = new Chart(ctxDef, {
+        type: 'line',
+        data: {
+          labels: historyLabels,
+          datasets: [{
+            label: 'Nt (10^15 cm^-3)',
+            data: historyDefects,
+            borderColor: '#f43f5e',
+            backgroundColor: 'rgba(244, 63, 94, 0.15)',
+            borderWidth: 1.5,
+            fill: true,
+            pointRadius: 0,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              min: 0,
+              max: 5.0,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 8 } }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // 3. Sensor Duty Cycle Chart
+      const ctxDuty = document.getElementById('chartDutyCycle').getContext('2d');
+      chartDutyCycle = new Chart(ctxDuty, {
+        type: 'line',
+        data: {
+          labels: historyLabels,
+          datasets: [{
+            label: 'Duty Cycle %',
+            data: historyDuty,
+            borderColor: '#818cf8',
+            backgroundColor: 'rgba(129, 140, 248, 0.15)',
+            borderWidth: 1.5,
+            fill: true,
+            pointRadius: 0,
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              min: 0,
+              max: 110,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 8 } }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // --- Interactive Sliders Event Listeners ---
+    document.getElementById('sliderFlux').addEventListener('input', (e) => {
+      simState.fluxFactor = parseFloat(e.target.value);
+      document.getElementById('fluxValText').textContent = simState.fluxFactor.toFixed(1) + '×';
+    });
+
+    document.getElementById('sliderTemp').addEventListener('input', (e) => {
+      simState.temperatureK = parseInt(e.target.value);
+      const desc = simState.temperatureK < 90 ? 'Deep Space Cryo' : (simState.temperatureK < 270 ? 'Martian Ambient' : 'Room Temp');
+      document.getElementById('tempValText').textContent = `${simState.temperatureK} K (${desc})`;
+    });
+
+    // --- Physics Simulation Loop (Canvas + Kinetic Model) ---
+    function stepSimulation() {
+      simState.tick++;
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+
+      // Spawn beta particles based on flux factor
+      const spawnTarget = Math.floor(2 * simState.fluxFactor * simState.flareMultiplier);
+      for (let i = 0; i < spawnTarget; i++) {
+        particles.push(new BetaElectron(w, h));
+      }
+
+      // Update particle kinematics
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        
+        // Probability of knock-on collision generating a vacancy
+        if (p.x > w * 0.35 && p.x < w * 0.85 && Math.random() < (0.018 * simState.flareMultiplier)) {
+          vacancies.push(new LatticeVacancy(p.x, p.y));
+          if (vacancies.length > 250) vacancies.shift();
+          
+          // Defect cluster formation if vacancies are closely spaced
+          if (Math.random() < 0.08) {
+            clusters.push(new DefectCluster(p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8));
+            if (clusters.length > 35) clusters.shift();
+          }
+        }
+        
+        if (!p.alive) particles.splice(i, 1);
+      }
+
+      // Physics State Progression
+      const deltaQ = 0.003 * simState.fluxFactor * simState.flareMultiplier;
+      simState.accumulatedQ += deltaQ;
+
+      // Thermal annealing helps restore lattice at higher temperatures
+      const annealFactor = Math.max(0.2, (simState.temperatureK / 300));
+      const defectRate = (0.004 * simState.fluxFactor * simState.flareMultiplier * (1 / annealFactor));
+      simState.defectDensity = Math.min(4.8, simState.defectDensity + defectRate);
+      simState.clusterCount = clusters.length;
+
+      // Small-Signal Conductance Degradation Model
+      // When defect clustering accelerates, G drops rapidly below the nominal corridor
+      const clusteringPenalty = Math.pow(simState.defectDensity, 1.45) * 6.2;
+      simState.conductanceG = Math.max(24.0, 135.0 - (simState.accumulatedQ * 11.2) - clusteringPenalty);
+
+      // Autonomous Sleep Throttle Governor Logic (BetaStrobe State Machine)
+      const hazardThreshold = 72.0;
+      if (simState.conductanceG <= hazardThreshold) {
+        simState.isAnomalous = true;
+        // Throttle duty cycle smoothly down to preserve dwindling power
+        const deficit = (hazardThreshold - simState.conductanceG) / (hazardThreshold - 24.0);
+        simState.dutyCycle = Math.max(5.0, 100.0 - (deficit * 95.0));
+      } else {
+        simState.isAnomalous = false;
+        simState.dutyCycle = 100.0;
+      }
+
+      simState.powerFloor_mW = Math.max(0.35, 2.35 * (simState.conductanceG / 135.0));
+
+      // Update UI Telemetry text
+      document.getElementById('telemetryG').innerHTML = `${simState.conductanceG.toFixed(1)} <span class="text-xs font-normal text-gray-400">&mu;S/mm&sup2;</span>`;
+      document.getElementById('telemetryQ').innerHTML = `${simState.accumulatedQ.toFixed(2)} <span class="text-xs font-normal text-gray-400">kC</span>`;
+      
+      const pingText = simState.dutyCycle > 80 ? '1 Hz Ping' : (simState.dutyCycle > 30 ? '0.1 Hz Ping' : '0.01 Hz Deep Sleep');
+      document.getElementById('telemetryDuty').innerHTML = `${simState.dutyCycle.toFixed(1)} <span class="text-xs font-normal text-gray-400">% (${pingText})</span>`;
+      document.getElementById('canvasFrenkelCount').textContent = `Vacancies: ${vacancies.length} | Clusters: ${clusters.length}`;
+
+      const statusEl = document.getElementById('latticeStatusText');
+      const badgeIcon = document.getElementById('latticeBadgeIcon');
+      if (simState.isAnomalous) {
+        statusEl.innerHTML = `<span class="text-rose-400 animate-pulse flex items-center space-x-1.5"><i data-lucide="alert-triangle" class="w-4 h-4"></i><span>CLUSTER ANOMALY</span></span>`;
+        badgeIcon.className = 'w-9 h-9 rounded-full bg-rose-950/80 border border-rose-500/40 flex items-center justify-center text-rose-400 animate-pulse';
+      } else {
+        statusEl.innerHTML = `<span class="text-emerald-400 flex items-center space-x-1.5"><i data-lucide="shield-check" class="w-4 h-4"></i><span>HOMOGENEOUS</span></span>`;
+        badgeIcon.className = 'w-9 h-9 rounded-full bg-emerald-950/80 border border-emerald-500/30 flex items-center justify-center text-emerald-400';
+      }
+
+      // Draw Canvas Frame
+      drawJunctionCanvas(w, h);
+
+      // Throttled Chart Updates (Every 4 Ticks)
+      if (simState.tick % 4 === 0) {
+        updateChartTelemetry();
+      }
+    }
+
+    // Canvas Rendering Function
+    function drawJunctionCanvas(w, h) {
+      ctx.clearRect(0, 0, w, h);
+
+      // Layer 1: Isotope Radio-Emitter Layer (Left)
+      const emitterW = w * 0.22;
+      const gradEmitter = ctx.createLinearGradient(0, 0, emitterW, 0);
+      gradEmitter.addColorStop(0, '#0f172a');
+      gradEmitter.addColorStop(1, '#1e293b');
+      ctx.fillStyle = gradEmitter;
+      ctx.fillRect(0, 0, emitterW, h);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText('Ni-63 / H-3 Fuel', 10, 20);
+      ctx.fillText('Beta Emitter', 10, 34);
+
+      // Layer 2: 4H-SiC p+ Anode Contact
+      const anodeW = w * 0.12;
+      ctx.fillStyle = '#1e1b4b';
+      ctx.fillRect(emitterW, 0, anodeW, h);
+      ctx.fillStyle = '#818cf8';
+      ctx.fillText('p+ Contact', emitterW + 6, 20);
+
+      // Layer 3: 4H-SiC Depletion & Drift Region
+      const driftStart = emitterW + anodeW;
+      const driftW = w * 0.52;
+      const gradDrift = ctx.createLinearGradient(driftStart, 0, driftStart + driftW, 0);
+      gradDrift.addColorStop(0, '#042f2e');
+      gradDrift.addColorStop(0.5, '#021817');
+      gradDrift.addColorStop(1, '#064e3b');
+      ctx.fillStyle = gradDrift;
+      ctx.fillRect(driftStart, 0, driftW, h);
+
+      ctx.fillStyle = '#2dd4bf';
+      ctx.fillText('4H-SiC Depletion Drift Volume (10 µm)', driftStart + 12, 20);
+
+      // Layer 4: n+ Substrate Cathode (Right)
+      const cathodeStart = driftStart + driftW;
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(cathodeStart, 0, w - cathodeStart, h);
+      ctx.fillStyle = '#9ca3af';
+      ctx.fillText('n+ Substrate', cathodeStart + 6, 20);
+
+      // Draw Electric Field Drift Lines
+      ctx.strokeStyle = 'rgba(45, 212, 191, 0.12)';
+      ctx.lineWidth = 1;
+      for (let y = 30; y < h; y += 28) {
+        ctx.beginPath();
+        ctx.moveTo(driftStart, y);
+        ctx.lineTo(cathodeStart, y);
+        ctx.stroke();
+      }
+
+      // Draw Vacancies
+      for (let i = 0; i < vacancies.length; i++) {
+        vacancies[i].draw(ctx);
+      }
+
+      // Draw Deep Defect Clusters (Z1/2 Deep Centers)
+      for (let i = 0; i < clusters.length; i++) {
+        clusters[i].draw(ctx);
+      }
+
+      // Draw Beta Particles
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].draw(ctx);
+      }
+    }
+
+    // Chart Telemetry Update Routine
+    function updateChartTelemetry() {
+      // 1. Update Phase-Space Trajectory
+      trajectoryData.push({ x: simState.accumulatedQ, y: simState.conductanceG });
+      if (trajectoryData.length > 55) trajectoryData.shift();
+      phaseSpaceChart.update('none');
+
+      // 2. Secondary Time-Series Charts
+      const timeLabel = (simState.tick * 0.05).toFixed(1) + 's';
+      historyLabels.push(timeLabel);
+      historyDefects.push(simState.defectDensity);
+      historyDuty.push(simState.dutyCycle);
+
+      if (historyLabels.length > 25) {
+        historyLabels.shift();
+        historyDefects.shift();
+        historyDuty.shift();
+      }
+
+      chartDefectDensity.update('none');
+      chartDutyCycle.update('none');
+
+      document.getElementById('defectDensityValue').textContent = simState.defectDensity.toFixed(2);
+      document.getElementById('dutyCycleValue').textContent = simState.dutyCycle.toFixed(0) + '%';
+      document.getElementById('powerFloorText').textContent = simState.powerFloor_mW.toFixed(2) + ' mW';
+      
+      const lifeSpan = (simState.powerFloor_mW * (100 / simState.dutyCycle) * 11.2).toFixed(1);
+      document.getElementById('missionLifeText').textContent = lifeSpan + ' Years';
+      
+      const lifePercent = Math.min(100, Math.max(10, (lifeSpan / 28.0) * 100));
+      document.getElementById('lifeBar').style.width = lifePercent + '%';
+    }
+
+    // --- PDF Export Routine via Vector Print Engine ---
+    function downloadTechnicalBrief() {
+      window.print();
+    }
+
+    // --- Window Onload & Initialization ---
+    window.onload = function() {
+      lucide.createIcons();
+      resizeCanvas();
+      initParticles();
+      initCharts();
+
+      // Start physics and canvas animation loop
+      setInterval(stepSimulation, 50);
+    };
+  </script>
+</body>
+</html>
